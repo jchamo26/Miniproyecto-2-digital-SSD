@@ -1,0 +1,12 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-multipart==0.0.6
+numpy==1.26.2
+pandas==2.2.3
+scikit-learn==1.5.2
+onnx==1.16.2
+onnxruntime==1.19.2
+skl2onnx==1.17.0
+pillow==10.4.0
+minio==7.2.15

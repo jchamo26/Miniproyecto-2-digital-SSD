@@ -1,0 +1,48 @@
+# Environment variables - NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+*.egg
+
+# Node / Frontend
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+
+# Docker
+.dockerignore
+
+# Logs & temp
+*.log
+*.tmp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ML model artifacts (large binaries)
+*.onnx
+*.pkl
+*.h5
+*.pt
+*.pth
+mlruns/
+mlflow-artifacts/
+
+# IDE
+.vscode/
+.idea/
+*.iml

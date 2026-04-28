@@ -1,0 +1,564 @@
+﻿{
+  "info": {
+    "name": "Sistema ClÃ­nico Digital - Corte 2",
+    "description": "HL7 FHIR R4 - ML/DL Inference - RiskReport Signature",
+    "version": "2.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Access-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{access_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"access_key\": \"{{access_key}}\",\n  \"permission_key\": \"{{permission_key}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/auth/login",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Verify Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/auth/verify",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["auth", "verify"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FHIR - Patients",
+      "item": [
+        {
+          "name": "List Patients",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/fhir/Patient?limit=10&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "Patient"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "admin"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Patient\",\n  \"name\": [{\"given\": [\"Juan\"], \"family\": \"GarcÃ­a\"}],\n  \"birthDate\": \"1980-05-15\",\n  \"gender\": \"male\",\n  \"active\": true\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/fhir/Patient",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "Patient"]
+            }
+          }
+        },
+        {
+          "name": "Get Patient",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/fhir/Patient/550e8400-e29b-41d4-a716-446655440000",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "Patient", "550e8400-e29b-41d4-a716-446655440000"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FHIR - Observations",
+      "item": [
+        {
+          "name": "Create Observation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"Observation\",\n  \"status\": \"final\",\n  \"subject\": {\"reference\": \"Patient/550e8400-e29b-41d4-a716-446655440000\"},\n  \"code\": {\n    \"coding\": [{\n      \"system\": \"http://loinc.org\",\n      \"code\": \"2339-0\",\n      \"display\": \"Glucose\"\n    }]\n  },\n  \"valueQuantity\": {\n    \"value\": 125.5,\n    \"unit\": \"mg/dL\",\n    \"system\": \"http://unitsofmeasure.org\",\n    \"code\": \"mg/dL\"\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/fhir/Observation",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "Observation"]
+            }
+          }
+        },
+        {
+          "name": "List Observations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/fhir/Observation?subject=Patient/550e8400-e29b-41d4-a716-446655440000&limit=20&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "Observation"],
+              "query": [
+                {
+                  "key": "subject",
+                  "value": "Patient/550e8400-e29b-41d4-a716-446655440000"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI - Inference",
+      "item": [
+        {
+          "name": "Request ML Inference",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"model_type\": \"ML\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8002/infer",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8002",
+              "path": ["infer"]
+            }
+          }
+        },
+        {
+          "name": "Get Inference Result",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8002/infer/550e8400-e29b-41d4-a716-446655440001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8002",
+              "path": ["infer", "550e8400-e29b-41d4-a716-446655440001"]
+            }
+          }
+        },
+        {
+          "name": "ML Predict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"features\": {\n    \"Glucose\": 125.5,\n    \"BloodPressure\": 80,\n    \"BMI\": 28.5\n  }\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8001/predict",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8001",
+              "path": ["predict"]
+            }
+          }
+        },
+        {
+          "name": "DL Predict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patient_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"minio_key\": \"patients/550e8400-e29b-41d4-a716-446655440000/heart-signal.json\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8003/predict",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8003",
+              "path": ["predict"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RiskReport - Firma",
+      "item": [
+        {
+          "name": "Create RiskAssessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceType\": \"RiskAssessment\",\n  \"status\": \"final\",\n  \"subject\": {\"reference\": \"Patient/550e8400-e29b-41d4-a716-446655440000\"},\n  \"prediction\": [{\n    \"probabilityDecimal\": 0.85,\n    \"qualitativeRisk\": {\n      \"coding\": [{\n        \"system\": \"http://snomed.info/sct\",\n        \"code\": \"281416004\",\n        \"display\": \"HIGH\"\n      }]\n    }\n  }]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/fhir/RiskAssessment",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "RiskAssessment"]
+            }
+          }
+        },
+        {
+          "name": "Sign RiskReport",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doctor_action\": \"ACCEPTED\",\n  \"doctor_notes\": \"Paciente presenta glucosa elevada. Se recomienda seguimiento endocrinolÃ³gico y ajuste de medicamentos. Resultado consistente con examen clÃ­nico.\",\n  \"rejection_reason\": null\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/fhir/RiskAssessment/550e8400-e29b-41d4-a716-446655440002/sign",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "RiskAssessment", "550e8400-e29b-41d4-a716-446655440002", "sign"]
+            }
+          }
+        },
+        {
+          "name": "Can Close Patient",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "{{permission_key}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/fhir/RiskAssessment/550e8400-e29b-41d4-a716-446655440000/can-close",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["fhir", "RiskAssessment", "550e8400-e29b-41d4-a716-446655440000", "can-close"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "admin"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/admin/users/?limit=50&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "users", ""],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "admin"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/admin/audit-log?action=LOGIN&limit=100&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "audit-log"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "LOGIN"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export Audit Log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "admin"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/admin/audit-log/export?format=csv",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "audit-log", "export"],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Access-Key",
+                "value": "{{access_key}}"
+              },
+              {
+                "key": "X-Permission-Key",
+                "value": "admin"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/admin/statistics",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["admin", "statistics"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+
