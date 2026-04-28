@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: str = os.getenv(
         "ALLOWED_ORIGINS",
-        "http://localhost,http://localhost:3000,http://localhost:5173,http://frontend:3000"
+        "http://localhost,http://localhost:3000,http://localhost:5173,https://localhost,https://localhost:3000,http://frontend:3000"
     )
     
     # Environment

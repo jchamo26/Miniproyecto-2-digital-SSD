@@ -57,12 +57,7 @@ export default function Login() {
         body: payload,
       }
 
-      let response = await fetch('/auth/login', requestConfig)
-
-      // If reverse proxy is temporarily unavailable, retry direct backend in local dev.
-      if (!response.ok && response.status >= 500 && window.location.hostname === 'localhost') {
-        response = await fetch('http://localhost:8000/auth/login', requestConfig)
-      }
+      const response = await fetch('/auth/login', requestConfig)
 
       if (response.ok) {
         const data = await response.json()
