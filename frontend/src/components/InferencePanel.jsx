@@ -160,7 +160,7 @@ export default function InferencePanel({ patientId, onClose }) {
     setTaskId(null)
     try {
       const imageBase64 = selectedFile ? await fileToBase64(selectedFile) : null
-      const r = await fetch('/infer/', {
+      const r = await fetch('/infer', {
         method: 'POST',
         headers: {
           'X-Access-Key': sessionStorage.getItem('accessKey'),
