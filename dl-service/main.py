@@ -1,4 +1,4 @@
-﻿"""DL Service - image ONNX INT8 inference with Grad-CAM-like artifact in MinIO."""
+"""DL Service - ECG image ONNX INT8 inference with Grad-CAM-like artifact in MinIO."""
 import base64
 import io
 import logging
@@ -15,16 +15,34 @@ from minio import Minio
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from PIL import Image
 from pydantic import BaseModel
-from sklearn.datasets import load_digits
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from skl2onnx import to_onnx
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="DL Service", version="4.0.0")
+app = FastAPI(title="DL Service", version="5.0.0")
+
+# ── ECG image preprocessing constants ────────────────────────────────────────
+IMG_H = 32   # height pixels used for the feature vector
+IMG_W = 64   # width  pixels used for the feature vector
+N_FEATURES = IMG_H * IMG_W  # 2048 input features
+
+# ── ECG class definitions ─────────────────────────────────────────────────────
+ECG_CLASSES = ["Normal", "Atrial Fibrillation", "ST-Elevation MI", "Other Arrhythmia"]
+
+# Clinical risk weight per class (0 = lowest, 1 = highest)
+ECG_CLASS_RISK_WEIGHTS = [0.10, 0.65, 0.95, 0.45]
+
+# Map ECG class → four-level risk category
+ECG_CLASS_TO_RISK: dict = {
+    "Normal": "LOW",
+    "Other Arrhythmia": "MEDIUM",
+    "Atrial Fibrillation": "HIGH",
+    "ST-Elevation MI": "CRITICAL",
+}
 
 
 class PredictionRequest(BaseModel):
@@ -48,12 +66,12 @@ class PredictionResponse(BaseModel):
 
 class ImageONNXService:
     def __init__(self):
-        self.dataset_name = "sklearn-digits"
+        self.dataset_name = "ECG-Images-Dataset"
         self.model_dir = Path("/app/models")
         self.model_dir.mkdir(parents=True, exist_ok=True)
 
-        self.onnx_fp32 = self.model_dir / "digits_fp32.onnx"
-        self.onnx_int8 = self.model_dir / "digits_int8.onnx"
+        self.onnx_fp32 = self.model_dir / "ecg_fp32.onnx"
+        self.onnx_int8 = self.model_dir / "ecg_int8.onnx"
 
         self.model = None
         self.session = None
@@ -72,19 +90,149 @@ class ImageONNXService:
             secret_key=self.minio_secret_key,
             secure=False,
         )
-        self.seed_prefix = os.getenv("DL_MINIO_SEED_PREFIX", "seed/chestxray")
-        self.local_seed_dir = Path(os.getenv("DL_LOCAL_IMAGE_DIR", "/datasets/nih-chestxray/images"))
+        self.seed_prefix = os.getenv("DL_MINIO_SEED_PREFIX", "seed/ecg-images")
+        self.local_seed_dir = Path(os.getenv("DL_LOCAL_IMAGE_DIR", "/datasets/ecg-images/images"))
         self.seed_max_upload = int(os.getenv("DL_SEED_MAX_UPLOAD", "200"))
         self.seed_image_keys: List[str] = []
 
-    def _load_dataset(self):
-        digits = load_digits()
-        x = digits.data.astype(np.float32)
-        y = (digits.target >= 5).astype(np.int64)
-        self.mean_image = x.mean(axis=0).reshape(8, 8)
+    # ── synthetic ECG waveform generation ────────────────────────────────────
 
+    @staticmethod
+    def _draw_ecg_wave(wave: np.ndarray, img: np.ndarray) -> np.ndarray:
+        """Draw a 1-D ECG waveform into a 2-D grayscale image array."""
+        h, w = img.shape
+        baseline = h // 2
+        wave_norm = wave / (np.max(np.abs(wave)) + 1e-8) * (h // 3)
+        for x, y_off in enumerate(wave_norm[:w]):
+            y = int(baseline - y_off)
+            y = max(0, min(h - 1, y))
+            img[y, x] = 1.0
+            if y > 0:
+                img[y - 1, x] = 0.6
+            if y < h - 1:
+                img[y + 1, x] = 0.6
+        return img
+
+    def _generate_synthetic_ecg(self, class_idx: int, seed: int) -> np.ndarray:
+        """Return a (IMG_H × IMG_W) float32 array representing a synthetic ECG trace."""
+        rng = np.random.default_rng(seed)
+        img = np.zeros((IMG_H, IMG_W), dtype=np.float32)
+        t = np.linspace(0, 2 * np.pi, IMG_W)
+
+        if class_idx == 0:  # Normal sinus rhythm
+            wave = 0.4 * np.sin(t) + 0.08 * np.sin(3 * t)
+            for qrs_x in (IMG_W // 4, 3 * IMG_W // 4):
+                xs = slice(max(0, qrs_x - 2), min(IMG_W, qrs_x + 3))
+                template = np.array([0.0, 0.6, -0.35, 0.9, 0.0])
+                wave[xs] += template[: xs.stop - xs.start]
+
+        elif class_idx == 1:  # Atrial fibrillation – irregular baseline, no clear P waves
+            freqs = rng.integers(8, 18, 6)
+            wave = sum(
+                rng.uniform(0.04, 0.1) * np.sin(f * t + rng.uniform(0, 2 * np.pi))
+                for f in freqs
+            )
+            positions = sorted(rng.integers(5, IMG_W - 5, 4).tolist())
+            for p in positions:
+                amp = rng.uniform(0.5, 0.85)
+                xs = slice(max(0, p - 1), min(IMG_W, p + 3))
+                wave[xs] += amp
+
+        elif class_idx == 2:  # ST-Elevation MI – elevated ST segment after QRS
+            wave = 0.25 * np.sin(t)
+            qrs_x = IMG_W // 3
+            xs = slice(max(0, qrs_x - 2), min(IMG_W, qrs_x + 3))
+            template = np.array([0.0, 0.7, -0.4, 1.0, 0.0])
+            wave[xs] += template[: xs.stop - xs.start]
+            st_start = qrs_x + 3
+            st_end = min(IMG_W, st_start + IMG_W // 3)
+            wave[st_start:st_end] += 0.45 - np.linspace(0, 0.2, st_end - st_start)
+
+        else:  # Other arrhythmia – wide / aberrant QRS
+            wave = 0.3 * np.sin(t)
+            for qrs_x in (IMG_W // 5, 3 * IMG_W // 5):
+                width = 8
+                xs = slice(max(0, qrs_x - 1), min(IMG_W, qrs_x + width))
+                span = xs.stop - xs.start
+                wave[xs] += np.linspace(0, 1, span) * 0.8 - 0.2
+
+        noise = rng.normal(0, 0.04, IMG_W).astype(np.float32)
+        wave = (wave + noise).astype(np.float32)
+        return self._draw_ecg_wave(wave, img)
+
+    def _generate_synthetic_dataset(self, n_per_class: int = 250, seed: int = 42):
+        """Generate a balanced synthetic ECG dataset for training."""
+        rng = np.random.default_rng(seed)
+        X, y = [], []
+        for class_idx in range(len(ECG_CLASSES)):
+            seeds = rng.integers(0, 100_000, n_per_class)
+            for s in seeds:
+                img = self._generate_synthetic_ecg(class_idx, int(s))
+                noise = rng.normal(0, 0.03, img.shape).astype(np.float32)
+                X.append(np.clip(img + noise, 0, 1).flatten())
+                y.append(class_idx)
+        return np.array(X, dtype=np.float32), np.array(y, dtype=np.int64)
+
+    # ── dataset loading ───────────────────────────────────────────────────────
+
+    def _load_dataset_from_dir(self):
+        """
+        Load ECG images from self.local_seed_dir.
+
+        Expected layout::
+
+            <local_seed_dir>/
+                Normal/               *.png | *.jpg | *.jpeg
+                Atrial Fibrillation/
+                ST-Elevation MI/
+                Other Arrhythmia/
+
+        Returns (X, y) arrays ready for train_test_split.
+        """
+        X, y = [], []
+        for class_idx, class_name in enumerate(ECG_CLASSES):
+            class_dir = self.local_seed_dir / class_name
+            if not class_dir.exists():
+                logger.warning("ECG class dir not found: %s", class_dir)
+                continue
+            count = 0
+            for img_path in sorted(class_dir.rglob("*")):
+                if img_path.suffix.lower() not in (".png", ".jpg", ".jpeg"):
+                    continue
+                if count >= self.seed_max_upload:
+                    break
+                try:
+                    pil = Image.open(img_path).convert("L")
+                    X.append(self._to_vector(pil))
+                    y.append(class_idx)
+                    count += 1
+                except Exception as exc:
+                    logger.warning("Skipping %s: %s", img_path, exc)
+        if not X:
+            raise ValueError("No ECG images found in %s" % self.local_seed_dir)
+        return np.array(X, dtype=np.float32), np.array(y, dtype=np.int64)
+
+    def _load_dataset(self):
+        if self.local_seed_dir.exists():
+            try:
+                logger.info("Loading ECG images from %s", self.local_seed_dir)
+                X, y = self._load_dataset_from_dir()
+                logger.info("Loaded %d real ECG images from disk", len(y))
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load ECG dataset (%s); falling back to synthetic data", exc
+                )
+                X, y = self._generate_synthetic_dataset()
+        else:
+            logger.info(
+                "ECG dataset not found at %s; using synthetic data for demo",
+                self.local_seed_dir,
+            )
+            X, y = self._generate_synthetic_dataset()
+
+        self.mean_image = X.mean(axis=0).reshape(IMG_H, IMG_W)
         x_train, x_test, y_train, y_test = train_test_split(
-            x, y, test_size=0.2, random_state=42, stratify=y
+            X, y, test_size=0.2, random_state=42, stratify=y
         )
         self.x_test = x_test
         self.y_test = y_test
@@ -93,18 +241,22 @@ class ImageONNXService:
     def _train_export_quantize(self):
         x_train, x_test, y_train, y_test = self._load_dataset()
 
-        self.model = LogisticRegression(max_iter=400, solver="lbfgs")
+        self.model = LogisticRegression(max_iter=600, solver="lbfgs", C=1.0)
         self.model.fit(x_train, y_train)
 
-        probs_test = self.model.predict_proba(x_test)[:, 1]
-        y_pred = (probs_test >= 0.5).astype(np.int64)
-
+        y_pred = self.model.predict(x_test)
         self.metrics = {
             "accuracy": round(float(accuracy_score(y_test, y_pred)), 4),
-            "auc_roc": round(float(roc_auc_score(y_test, probs_test)), 4),
+            "num_classes": len(ECG_CLASSES),
+            "classes": ECG_CLASSES,
         }
 
-        onx = to_onnx(self.model, x_train[:1], options={id(self.model): {"zipmap": False}}, target_opset=13)
+        onx = to_onnx(
+            self.model,
+            x_train[:1],
+            options={id(self.model): {"zipmap": False}},
+            target_opset=13,
+        )
         with open(self.onnx_fp32, "wb") as f:
             f.write(onx.SerializeToString())
 
@@ -143,11 +295,14 @@ class ImageONNXService:
         existing = self._list_seed_keys()
         if existing:
             self.seed_image_keys = existing
-            logger.info("DL seed images already present in MinIO: %s", len(existing))
+            logger.info("DL seed ECG images already present in MinIO: %s", len(existing))
             return
 
         if not self.local_seed_dir.exists():
-            logger.info("DL local seed folder not found at %s; using synthetic fallback", self.local_seed_dir)
+            logger.info(
+                "DL local seed folder not found at %s; using synthetic fallback",
+                self.local_seed_dir,
+            )
             self.seed_image_keys = []
             return
 
@@ -158,7 +313,8 @@ class ImageONNXService:
 
         uploaded = 0
         for img_path in candidates:
-            object_name = f"{self.seed_prefix}/{img_path.name}"
+            # Preserve class sub-folder in the MinIO key so seed images stay organised
+            object_name = f"{self.seed_prefix}/{img_path.parent.name}/{img_path.name}"
             try:
                 payload = img_path.read_bytes()
                 self.minio_client.put_object(
@@ -174,7 +330,7 @@ class ImageONNXService:
 
         self.seed_image_keys = self._list_seed_keys()
         logger.info(
-            "DL seeded images from %s: uploaded=%s available=%s",
+            "DL seeded ECG images from %s: uploaded=%s available=%s",
             self.local_seed_dir,
             uploaded,
             len(self.seed_image_keys),
@@ -199,7 +355,9 @@ class ImageONNXService:
         self._train_export_quantize()
         self._ensure_bucket()
         self._seed_minio_from_local()
-        logger.info("DL image model initialized with metrics=%s", self.metrics)
+        logger.info("DL ECG model initialized with metrics=%s", self.metrics)
+
+    # ── image helpers ─────────────────────────────────────────────────────────
 
     def _decode_image_b64(self, image_base64: str) -> Image.Image:
         payload = image_base64.split(",", 1)[-1]
@@ -207,63 +365,34 @@ class ImageONNXService:
         return Image.open(io.BytesIO(raw)).convert("L")
 
     def _synthetic_image(self, patient_id: str) -> Image.Image:
+        """Generate a deterministic synthetic ECG image from the patient ID."""
         seed = abs(hash(patient_id)) % (2**32)
-        rng = np.random.default_rng(seed)
-        arr = rng.integers(0, 255, size=(256, 256), dtype=np.uint8)
-        return Image.fromarray(arr, mode="L")
+        class_idx = seed % len(ECG_CLASSES)
+        arr = self._generate_synthetic_ecg(class_idx, seed)
+        return Image.fromarray(np.uint8(arr * 255), mode="L")
 
     def _to_vector(self, img: Image.Image) -> np.ndarray:
-        resized = img.resize((8, 8), Image.Resampling.BILINEAR)
-        arr = np.asarray(resized, dtype=np.float32)
-        arr = np.clip(arr / 255.0 * 16.0, 0.0, 16.0)
-        return arr.reshape(-1)
+        """Resize an ECG image to (IMG_H × IMG_W) and return a flat float32 vector."""
+        resized = img.resize((IMG_W, IMG_H), Image.Resampling.BILINEAR)
+        arr = np.asarray(resized, dtype=np.float32) / 255.0
+        return arr.flatten()
 
-    def _onnx_prob(self, x_vec: np.ndarray) -> float:
+    # ── inference helpers ──────────────────────────────────────────────────────
+
+    def _onnx_probs(self, x_vec: np.ndarray) -> np.ndarray:
+        """Run ONNX inference and return class probability array (shape: [num_classes])."""
         input_name = self.session.get_inputs()[0].name
         outputs = self.session.run(None, {input_name: x_vec.reshape(1, -1).astype(np.float32)})
-
-        probs = None
         for out in outputs:
             arr = np.asarray(out)
-            if arr.ndim == 2 and arr.shape[1] >= 2:
-                probs = arr[0]
-                break
-
-        if probs is None:
-            probs = self.model.predict_proba(x_vec.reshape(1, -1))[0]
-
-        return float(probs[1] if probs.shape[0] == 2 else np.max(probs))
-
-    def _risk_category(self, score: float) -> str:
-        if score > 0.8:
-            return "CRITICAL"
-        if score > 0.6:
-            return "HIGH"
-        if score > 0.4:
-            return "MEDIUM"
-        return "LOW"
-
-    @staticmethod
-    def _normalize_probs(raw: dict) -> dict:
-        total = sum(raw.values())
-        if total <= 0:
-            return {k: 0.0 for k in raw.keys()}
-        return {k: float(v / total) for k, v in raw.items()}
-
-    def _risk_distribution(self, score: float) -> dict:
-        low = max(0.0, 1.0 - (score * 2.0))
-        medium = max(0.0, 1.0 - abs(score - 0.5) * 2.2)
-        high = max(0.0, 1.0 - abs(score - 0.72) * 3.0)
-        critical = max(0.0, (score - 0.68) / 0.32)
-        return self._normalize_probs({
-            "LOW": low,
-            "MEDIUM": medium,
-            "HIGH": high,
-            "CRITICAL": critical,
-        })
+            if arr.ndim == 2 and arr.shape[1] == len(ECG_CLASSES):
+                return arr[0]
+        # Fallback: sklearn predict_proba
+        return self.model.predict_proba(x_vec.reshape(1, -1))[0]
 
     def _build_gradcam(self, x_vec: np.ndarray) -> Image.Image:
-        heat = np.abs(x_vec.reshape(8, 8) - self.mean_image)
+        """Produce a Grad-CAM-like saliency heatmap from deviation vs mean ECG."""
+        heat = np.abs(x_vec.reshape(IMG_H, IMG_W) - self.mean_image)
         heat = heat / (heat.max() + 1e-8)
         heat_u8 = np.uint8(heat * 255)
         base = Image.fromarray(heat_u8, mode="L").resize((256, 256), Image.Resampling.NEAREST)
@@ -282,43 +411,34 @@ class ImageONNXService:
         compat_image_key = f"images/{task_id}.png"
         compat_gradcam_key = f"gradcam/{task_id}.png"
 
-        self.minio_client.put_object(
-            self.minio_bucket,
-            image_key,
-            io.BytesIO(image_payload),
-            length=len(image_payload),
-            content_type="image/png",
-        )
-        self.minio_client.put_object(
-            self.minio_bucket,
-            gradcam_key,
-            io.BytesIO(gradcam_payload),
-            length=len(gradcam_payload),
-            content_type="image/png",
-        )
-        self.minio_client.put_object(
-            self.minio_bucket,
-            compat_image_key,
-            io.BytesIO(image_payload),
-            length=len(image_payload),
-            content_type="image/png",
-        )
-        self.minio_client.put_object(
-            self.minio_bucket,
-            compat_gradcam_key,
-            io.BytesIO(gradcam_payload),
-            length=len(gradcam_payload),
-            content_type="image/png",
-        )
+        for key, payload in [
+            (image_key, image_payload),
+            (compat_image_key, image_payload),
+        ]:
+            self.minio_client.put_object(
+                self.minio_bucket, key, io.BytesIO(payload), length=len(payload), content_type="image/png"
+            )
+        for key, payload in [
+            (gradcam_key, gradcam_payload),
+            (compat_gradcam_key, gradcam_payload),
+        ]:
+            self.minio_client.put_object(
+                self.minio_bucket, key, io.BytesIO(payload), length=len(payload), content_type="image/png"
+            )
         return image_key, gradcam_key
 
     def predict(self, patient_id: str, task_id: str, image: Image.Image) -> dict:
         x_vec = self._to_vector(image)
-        risk_score = max(0.0, min(1.0, self._onnx_prob(x_vec)))
-        risk_category = self._risk_category(risk_score)
-        probs = self._risk_distribution(risk_score)
-        gradcam = self._build_gradcam(x_vec)
+        probs = self._onnx_probs(x_vec)
 
+        # Scalar risk score = weighted sum of class probabilities
+        risk_score = float(np.clip(np.dot(probs, ECG_CLASS_RISK_WEIGHTS), 0.0, 1.0))
+        predicted_class_idx = int(np.argmax(probs))
+        predicted_class = ECG_CLASSES[predicted_class_idx]
+        risk_category = ECG_CLASS_TO_RISK[predicted_class]
+        probabilities = {ECG_CLASSES[i]: float(probs[i]) for i in range(len(ECG_CLASSES))}
+
+        gradcam = self._build_gradcam(x_vec)
         image_url = None
         gradcam_url = None
         try:
@@ -331,8 +451,8 @@ class ImageONNXService:
         return {
             "risk_score": risk_score,
             "risk_category": risk_category,
-            "predicted_class": risk_category,
-            "probabilities": probs,
+            "predicted_class": predicted_class,
+            "probabilities": probabilities,
             "is_critical": risk_category == "CRITICAL",
             "image_url": image_url,
             "gradcam_url": gradcam_url,
@@ -340,14 +460,23 @@ class ImageONNXService:
                 "resourceType": "DiagnosticReport",
                 "status": "final",
                 "code": {
-                    "coding": [{"system": "http://loinc.org", "code": "24627-2", "display": "Imaging study report"}],
-                    "text": "DL image risk report",
+                    "coding": [
+                        {
+                            "system": "http://loinc.org",
+                            "code": "11524-6",
+                            "display": "EKG study",
+                        }
+                    ],
+                    "text": "DL ECG image classification report",
                 },
                 "subject": {"reference": f"Patient/{patient_id}"},
-                "conclusion": f"Predicted risk category: {risk_category}",
+                "conclusion": (
+                    f"ECG classification: {predicted_class}. "
+                    f"Clinical risk: {risk_category} (score {risk_score:.3f})."
+                ),
                 "presentedForm": [
-                    {"contentType": "image/png", "url": image_url, "title": "Input image"},
-                    {"contentType": "image/png", "url": gradcam_url, "title": "Grad-CAM"},
+                    {"contentType": "image/png", "url": image_url, "title": "ECG input image"},
+                    {"contentType": "image/png", "url": gradcam_url, "title": "Saliency map (Grad-CAM-like)"},
                 ],
             },
         }
@@ -431,11 +560,12 @@ async def get_version():
     int8_size = round(service.onnx_int8.stat().st_size / (1024 * 1024), 3) if service.onnx_int8.exists() else None
 
     return {
-        "model": "Digits-LogReg-Image",
+        "model": "ECG-Image-LogReg",
         "framework": "ONNX Runtime",
         "quantization": "INT8",
         "metrics": service.metrics,
-        "input_shape": [1, 64],
+        "input_shape": [1, N_FEATURES],
+        "ecg_classes": ECG_CLASSES,
         "artifacts": {
             "onnx_fp32_mb": fp32_size,
             "onnx_int8_mb": int8_size,
@@ -455,4 +585,5 @@ async def health():
         "minio_bucket": service.minio_bucket,
         "seed_images_count": len(service.seed_image_keys),
         "seed_local_dir": str(service.local_seed_dir),
+        "ecg_classes": ECG_CLASSES,
     }
