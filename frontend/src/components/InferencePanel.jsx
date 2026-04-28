@@ -146,7 +146,7 @@ export default function InferencePanel({ patientId, onClose }) {
 
   const handleInference = async () => {
     if (role !== 'medico') {
-      toast.error('Solo el medico especialista puede ejecutar modelos')
+      toast.error('Solo el médico especialista puede ejecutar modelos')
       return
     }
 
@@ -171,15 +171,15 @@ export default function InferencePanel({ patientId, onClose }) {
       })
       if (!r.ok) {
         const err = await r.json().catch(() => ({}))
-        toast.error(err.detail || 'Error ejecutando analisis')
+        toast.error(err.detail || 'Error ejecutando análisis')
         return
       }
       const d = await r.json()
       setTaskId(d.task_id)
-      toast.success('Analisis iniciado')
+      toast.success('Análisis iniciado')
       pollResults(d.task_id)
     } catch {
-      toast.error('Error de conexion')
+      toast.error('Error de conexión')
     } finally {
       setLoading(false)
     }
@@ -202,12 +202,12 @@ export default function InferencePanel({ patientId, onClose }) {
         const d = await r.json()
         if (d.status === 'DONE') {
           setResult(d.result)
-          toast.success('Analisis completado')
+          toast.success('Análisis completado')
           return
         }
         if (d.status === 'ERROR') {
           setTaskId(null)
-          toast.error(d.error_msg || 'Error en el analisis')
+          toast.error(d.error_msg || 'Error en el análisis')
           return
         }
         if (++attempts < 30) {
@@ -215,7 +215,7 @@ export default function InferencePanel({ patientId, onClose }) {
           return
         }
         setTaskId(null)
-        toast.error('El analisis tardo demasiado. Intenta de nuevo.')
+        toast.error('El análisis tardó demasiado. Intenta de nuevo.')
       } catch {
         setTaskId(null)
         toast.error('Error consultando resultado')
@@ -275,7 +275,7 @@ export default function InferencePanel({ patientId, onClose }) {
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-white flex items-center gap-2">
           <Brain className="w-5 h-5 text-purple-400" />
-          Panel de Inferencia Clinica
+          Panel de inferencia clínica
         </h2>
         <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
           <X className="w-4 h-4" />
@@ -286,9 +286,9 @@ export default function InferencePanel({ patientId, onClose }) {
         <>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { value: 'ML', label: 'Heart ML', icon: BarChart2, sub: 'Logistic ONNX INT8' },
-              { value: 'DL', label: 'Heart DL', icon: Cpu, sub: 'MLP ONNX INT8' },
-              { value: 'MULTIMODAL', label: 'Fusion', icon: Zap, sub: 'ML + DL ensemble' },
+              { value: 'ML', label: 'Modelo ML', icon: BarChart2, sub: 'Riesgo tabular ONNX INT8' },
+              { value: 'DL', label: 'Modelo DL', icon: Cpu, sub: 'ECG por imagen ONNX INT8' },
+              { value: 'MULTIMODAL', label: 'Fusión', icon: Zap, sub: 'ML + DL combinados' },
             ].map(m => (
               <button
                 key={m.value}
@@ -310,7 +310,7 @@ export default function InferencePanel({ patientId, onClose }) {
           {(modelType === 'DL' || modelType === 'MULTIMODAL') && (
             <div className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/60">
               <label className="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
-                Imagen Clinica (JPG o PNG)
+                Imagen clínica (JPG o PNG)
               </label>
               <input
                 type="file"
@@ -330,7 +330,7 @@ export default function InferencePanel({ patientId, onClose }) {
 
           <div className="p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-xs text-amber-300 flex items-start gap-2">
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-            Resultado de apoyo diagnostico. No reemplaza criterio medico.
+            Resultado de apoyo diagnóstico. No reemplaza el criterio médico.
           </div>
 
           <motion.button
@@ -341,7 +341,7 @@ export default function InferencePanel({ patientId, onClose }) {
             className="w-full py-3 rounded-lg font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2"
             style={{ background: 'linear-gradient(135deg,#0891b2,#0e7490)', boxShadow: '0 0 16px rgba(8,145,178,0.3)' }}
           >
-            {loading ? <><Loader className="w-4 h-4 animate-spin" /> Ejecutando...</> : <><Zap className="w-4 h-4" /> Ejecutar Analisis</>}
+            {loading ? <><Loader className="w-4 h-4 animate-spin" /> Ejecutando...</> : <><Zap className="w-4 h-4" /> Ejecutar análisis</>}
           </motion.button>
         </>
       )}
@@ -352,7 +352,7 @@ export default function InferencePanel({ patientId, onClose }) {
             <div className="absolute inset-0 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
             <Brain className="absolute inset-0 m-auto w-6 h-6 text-cyan-400" />
           </div>
-          <p className="text-slate-300 font-medium">Procesando analisis...</p>
+          <p className="text-slate-300 font-medium">Procesando análisis...</p>
           <p className="text-xs text-slate-500">Task ID: {taskId?.slice(0, 12)}...</p>
         </div>
       )}
@@ -361,7 +361,7 @@ export default function InferencePanel({ patientId, onClose }) {
         <div className="space-y-4">
           <div className="p-3 rounded-lg bg-emerald-900/20 border border-emerald-700/40 flex items-center gap-2">
             <Check className="w-4 h-4 text-emerald-400" />
-            <p className="text-sm font-semibold text-emerald-300">Analisis completado</p>
+            <p className="text-sm font-semibold text-emerald-300">Análisis completado</p>
           </div>
 
           {riskScore != null && (
@@ -372,7 +372,7 @@ export default function InferencePanel({ patientId, onClose }) {
               </div>
               <div className="space-y-3 flex flex-col justify-center">
                 <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
-                  <p className="text-xs text-slate-400 mb-1">Categoria</p>
+                <p className="text-xs text-slate-400 mb-1">Categoría</p>
                   <span className={RISK_BADGE_CLASS[riskCategory] || 'badge-low'}>{riskCategory || 'N/A'}</span>
                 </div>
                 <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
@@ -413,7 +413,7 @@ export default function InferencePanel({ patientId, onClose }) {
             <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
               <p className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
                 <Cpu className="w-3.5 h-3.5 text-purple-400" />
-                Distribucion por Categoria
+                Distribución por categoría
               </p>
               <DistributionChart probabilities={distSource} />
             </div>
@@ -421,7 +421,7 @@ export default function InferencePanel({ patientId, onClose }) {
 
           {dlResult?.gradcam_url && (
             <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
-              <p className="text-xs font-semibold text-slate-300 mb-2">Artefactos de Imagen</p>
+              <p className="text-xs font-semibold text-slate-300 mb-2">Artefactos de imagen</p>
               {gradcamPreview && (
                 <img src={gradcamPreview} alt="Grad-CAM" className="w-full max-w-sm rounded-lg border border-slate-700/60 mb-3" />
               )}
@@ -433,7 +433,7 @@ export default function InferencePanel({ patientId, onClose }) {
           )}
 
           <button onClick={() => { setResult(null); setTaskId(null) }} className="w-full py-2.5 rounded-lg btn-ghost text-sm">
-            Ejecutar nuevo analisis
+            Ejecutar nuevo análisis
           </button>
         </div>
       )}

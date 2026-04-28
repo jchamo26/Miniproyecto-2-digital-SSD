@@ -49,13 +49,6 @@ function VitalsSparkline({ data, color = '#22d3ee', label }) {
   )
 }
 
-const TABS = [
-  { id: 'datos', label: 'Datos Clinicos', icon: User },
-  { id: 'vitales', label: 'Signos Vitales', icon: Activity },
-  { id: 'analisis', label: 'Analisis IA', icon: Zap },
-  { id: 'auditoria', label: 'Auditoria', icon: FileText },
-]
-
 export default function PatientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -74,8 +67,19 @@ export default function PatientDetail() {
   const isAdmin = role === 'admin'
   const isMedico = role === 'medico'
   const isPaciente = role === 'paciente'
+  const tabs = [
+    { id: 'datos', label: 'Datos clínicos', icon: User },
+    { id: 'vitales', label: 'Signos vitales', icon: Activity },
+    ...(isMedico ? [{ id: 'analisis', label: 'Análisis de IA', icon: Zap }] : []),
+    ...(isAdmin ? [{ id: 'auditoria', label: 'Auditoría', icon: FileText }] : []),
+  ]
 
   useEffect(() => { fetchPatientContext() }, [id])
+  useEffect(() => {
+    if (!tabs.some(tab => tab.id === activeTab)) {
+      setActiveTab(tabs[0].id)
+    }
+  }, [activeTab, tabs])
 
   const authHeaders = () => ({
     'X-Access-Key': sessionStorage.getItem('accessKey'),
@@ -170,41 +174,8 @@ export default function PatientDetail() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Cargando ficha clinica...</p>
+          <p className="text-slate-400 text-sm">Cargando ficha clínica...</p>
         </div>
-
-              {isPaciente && (
-                <div className="card-clinical">
-                  <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-                    <ClipboardList className="w-4 h-4 text-cyan-400" />
-                    Solicitud de Correccion de Datos (ARCO)
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <select
-                      value={correctionForm.field_name}
-                      onChange={e => setCorrectionForm({ ...correctionForm, field_name: e.target.value })}
-                      className="input-clinical"
-                    >
-                      <option value="name">Nombre</option>
-                      <option value="birthDate">Fecha de nacimiento</option>
-                      <option value="gender">Genero</option>
-                    </select>
-                    <input
-                      value={correctionForm.requested_value}
-                      onChange={e => setCorrectionForm({ ...correctionForm, requested_value: e.target.value })}
-                      placeholder="Valor correcto solicitado"
-                      className="input-clinical"
-                    />
-                    <input
-                      value={correctionForm.reason}
-                      onChange={e => setCorrectionForm({ ...correctionForm, reason: e.target.value })}
-                      placeholder="Motivo de la correccion"
-                      className="input-clinical"
-                    />
-                  </div>
-                  <button onClick={handleCorrectionRequest} className="btn-primary mt-3">Enviar solicitud</button>
-                </div>
-              )}
       </div>
     )
   }
@@ -234,7 +205,7 @@ export default function PatientDetail() {
         <Heart className="w-5 h-5 text-cyan-400" />
         <span className="text-sm text-slate-400">Dashboard</span>
         <span className="text-slate-600">/</span>
-        <span className="text-sm text-white font-medium">Ficha Clinica</span>
+        <span className="text-sm text-white font-medium">Ficha clínica</span>
         {isAdmin && (
           <span className="ml-auto flex items-center gap-1.5 text-xs text-amber-400 bg-amber-900/20 border border-amber-700/40 px-2.5 py-1 rounded-full">
             <Lock className="w-3 h-3" />
@@ -277,7 +248,7 @@ export default function PatientDetail() {
         )}
 
         <div className="tab-nav overflow-x-auto">
-          {TABS.map(tab => (
+          {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`tab-btn flex items-center gap-1.5 whitespace-nowrap ${activeTab === tab.id ? 'active' : ''}`}>
               <tab.icon className="w-3.5 h-3.5" />
               {tab.label}
@@ -291,14 +262,14 @@ export default function PatientDetail() {
               <div className="card-clinical">
                 <h3 className="font-bold text-white mb-4 flex items-center gap-2">
                   <User className="w-4 h-4 text-cyan-400" />
-                  Informacion Demografica
+                  Información demográfica
                   {isAdmin && <span className="text-xs text-amber-400 font-normal ml-1">(cifrado para admin)</span>}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-y-5 gap-x-6">
                   {[
                     { label: 'Nombre completo', value: fullName },
                     { label: 'Fecha de nacimiento', value: patient?.birthDate },
-                    { label: 'Genero', value: patient?.gender },
+                    { label: 'Género', value: patient?.gender },
                     { label: 'ID FHIR', value: patient?.id, alwaysShow: true },
                     { label: 'Estado', value: patient?.active ? 'Activo' : 'Inactivo', alwaysShow: true },
                     { label: 'Recurso', value: 'Patient R4', alwaysShow: true },
@@ -335,13 +306,13 @@ export default function PatientDetail() {
               <div className="card-clinical">
                 <h3 className="font-bold text-white mb-4 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-cyan-400" />
-                  Tendencias de Signos Vitales
-                  <span className="text-xs text-slate-500 font-normal">(ultimas 10 mediciones)</span>
+                  Tendencias de signos vitales
+                  <span className="text-xs text-slate-500 font-normal">(últimas 10 mediciones)</span>
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.heartRate} color="#f87171" label="Frecuencia Cardiaca (lpm)" /></div>
-                  <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.systolic} color="#fb923c" label="Presion Sistolica (mmHg)" /></div>
-                  <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.oxygen} color="#34d399" label="Saturacion O2 (%)" /></div>
+                  <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.heartRate} color="#f87171" label="Frecuencia cardíaca (lpm)" /></div>
+                  <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.systolic} color="#fb923c" label="Presión sistólica (mmHg)" /></div>
+                  <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.oxygen} color="#34d399" label="Saturación O2 (%)" /></div>
                   <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40"><VitalsSparkline data={vitals.glucose} color="#a78bfa" label="Glucosa en sangre (mg/dL)" /></div>
                 </div>
               </div>
@@ -349,7 +320,7 @@ export default function PatientDetail() {
               <div className="grid grid-cols-4 gap-3">
                 {[
                   { label: 'FC', value: `${vitals.heartRate.at(-1)} lpm`, color: '#f87171' },
-                  { label: 'PA Sistolica', value: `${vitals.systolic.at(-1)} mmHg`, color: '#fb923c' },
+                  { label: 'PA sistólica', value: `${vitals.systolic.at(-1)} mmHg`, color: '#fb923c' },
                   { label: 'SpO2', value: `${vitals.oxygen.at(-1)}%`, color: '#34d399' },
                   { label: 'Glucosa', value: `${vitals.glucose.at(-1)} mg/dL`, color: '#a78bfa' },
                 ].map(v => (
@@ -361,7 +332,7 @@ export default function PatientDetail() {
               </div>
 
               <div className="card-clinical">
-                <h3 className="font-bold text-white mb-3">Observations del Historial</h3>
+                <h3 className="font-bold text-white mb-3">Observaciones del historial</h3>
                 <div className="space-y-2">
                   {observations.map((item, index) => {
                     const obs = item.resource
@@ -380,14 +351,47 @@ export default function PatientDetail() {
 
                 {isMedico && (
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <input className="input-clinical" value={observationForm.display} onChange={e => setObservationForm({ ...observationForm, display: e.target.value })} placeholder="Nombre de la observacion" />
-                    <input className="input-clinical" value={observationForm.code} onChange={e => setObservationForm({ ...observationForm, code: e.target.value })} placeholder="Codigo LOINC" />
+                    <input className="input-clinical" value={observationForm.display} onChange={e => setObservationForm({ ...observationForm, display: e.target.value })} placeholder="Nombre de la observación" />
+                    <input className="input-clinical" value={observationForm.code} onChange={e => setObservationForm({ ...observationForm, code: e.target.value })} placeholder="Código LOINC" />
                     <input className="input-clinical" value={observationForm.value} onChange={e => setObservationForm({ ...observationForm, value: e.target.value })} placeholder="Valor" type="number" />
                     <input className="input-clinical" value={observationForm.unit} onChange={e => setObservationForm({ ...observationForm, unit: e.target.value })} placeholder="Unidad" />
-                    <button onClick={handleCreateObservation} className="btn-primary md:col-span-4">Agregar observacion al historial</button>
+                    <button onClick={handleCreateObservation} className="btn-primary md:col-span-4">Agregar observación al historial</button>
                   </div>
                 )}
               </div>
+
+              {isPaciente && (
+                <div className="card-clinical">
+                  <h3 className="font-bold text-white mb-3 flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-cyan-400" />
+                    Solicitud de corrección de datos (ARCO)
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <select
+                      value={correctionForm.field_name}
+                      onChange={e => setCorrectionForm({ ...correctionForm, field_name: e.target.value })}
+                      className="input-clinical"
+                    >
+                      <option value="name">Nombre</option>
+                      <option value="birthDate">Fecha de nacimiento</option>
+                      <option value="gender">Género</option>
+                    </select>
+                    <input
+                      value={correctionForm.requested_value}
+                      onChange={e => setCorrectionForm({ ...correctionForm, requested_value: e.target.value })}
+                      placeholder="Valor correcto solicitado"
+                      className="input-clinical"
+                    />
+                    <input
+                      value={correctionForm.reason}
+                      onChange={e => setCorrectionForm({ ...correctionForm, reason: e.target.value })}
+                      placeholder="Motivo de la corrección"
+                      className="input-clinical"
+                    />
+                  </div>
+                  <button onClick={handleCorrectionRequest} className="btn-primary mt-3">Enviar solicitud</button>
+                </div>
+              )}
             </div>
           )}
 
@@ -398,7 +402,7 @@ export default function PatientDetail() {
                   <Lock className="w-5 h-5 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-semibold">Acceso restringido para admin</p>
-                    <p className="text-sm text-amber-200 mt-1">Los resultados clinicos de inferencia se muestran solo a medico y paciente.</p>
+                    <p className="text-sm text-amber-200 mt-1">Los resultados clínicos de inferencia se muestran solo a médico y paciente.</p>
                   </div>
                 </div>
               ) : isMedico && !showInferencePanel ? (
@@ -411,20 +415,20 @@ export default function PatientDetail() {
                   <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-600/30 to-cyan-600/20 border border-purple-500/40 flex items-center justify-center mx-auto mb-3">
                     <Zap className="w-7 h-7 text-yellow-400" />
                   </div>
-                  <p className="font-bold text-white text-lg">Ejecutar Analisis ML / DL</p>
-                  <p className="text-sm text-slate-400 mt-1">Heart Disease score con fusion multimodelo</p>
-                  <p className="text-xs text-slate-600 mt-3">ONNX INT8 para latencia baja en entorno clinico</p>
+                  <p className="font-bold text-white text-lg">Ejecutar análisis ML / DL</p>
+                  <p className="text-sm text-slate-400 mt-1">Riesgo clínico con fusión multimodelo</p>
+                  <p className="text-xs text-slate-600 mt-3">ONNX INT8 para baja latencia en entorno clínico</p>
                 </motion.button>
               ) : isMedico ? (
                 <InferencePanel patientId={id} onClose={() => setShowInferencePanel(false)} />
               ) : (
                 <div className="space-y-4">
                   <div className="card-clinical p-4 border border-cyan-700/40 bg-cyan-900/10 text-cyan-200">
-                    Como paciente/auditor puede consultar sus diagnosticos y reportes firmados, pero no ejecutar modelos.
+                    Como paciente puede consultar sus diagnósticos y reportes firmados, pero no ejecutar modelos.
                   </div>
 
                   <div className="card-clinical">
-                    <h3 className="font-bold text-white mb-3">RiskReports Firmados</h3>
+                    <h3 className="font-bold text-white mb-3">RiskReports firmados</h3>
                     <div className="space-y-2">
                       {riskReports.filter(item => item.signed_at).map(item => (
                         <div key={item.id} className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
@@ -432,7 +436,7 @@ export default function PatientDetail() {
                             <span className="text-sm text-white font-medium">{item.model_type}</span>
                             <span className="badge-low">Firmado</span>
                           </div>
-                          <p className="text-sm text-slate-400 mt-1">Categoria: {item.risk_category} | Score: {(Number(item.risk_score || 0) * 100).toFixed(1)}%</p>
+                          <p className="text-sm text-slate-400 mt-1">Categoría: {item.risk_category} | Score: {(Number(item.risk_score || 0) * 100).toFixed(1)}%</p>
                         </div>
                       ))}
                       {riskReports.filter(item => item.signed_at).length === 0 && <p className="text-sm text-slate-500">No hay RiskReports firmados visibles.</p>}
@@ -445,7 +449,7 @@ export default function PatientDetail() {
                       {diagnosticReports.map(report => (
                         <div key={report.id} className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/40">
                           <p className="text-sm font-medium text-white">{report.code?.text || 'DiagnosticReport'}</p>
-                          <p className="text-xs text-slate-400 mt-1">{report.conclusion || 'Sin conclusion'}</p>
+                          <p className="text-xs text-slate-400 mt-1">{report.conclusion || 'Sin conclusión'}</p>
                         </div>
                       ))}
                       {diagnosticReports.length === 0 && <p className="text-sm text-slate-500">No hay DiagnosticReports registrados.</p>}
@@ -466,14 +470,14 @@ export default function PatientDetail() {
 
           {activeTab === 'auditoria' && (
             <div className="card-clinical space-y-3">
-              <h3 className="font-bold text-white flex items-center gap-2">
+                <h3 className="font-bold text-white flex items-center gap-2">
                 <FileText className="w-4 h-4 text-cyan-400" />
-                Registro de Auditoria
+                Registro de auditoría
               </h3>
               <div className="space-y-2">
                 {[
-                  { time: new Date().toLocaleString('es-CO'), action: 'Acceso a ficha clinica', user: role },
-                  { time: new Date(Date.now() - 3600000).toLocaleString('es-CO'), action: 'Consulta de datos demograficos', user: role },
+                  { time: new Date().toLocaleString('es-CO'), action: 'Acceso a ficha clínica', user: role },
+                  { time: new Date(Date.now() - 3600000).toLocaleString('es-CO'), action: 'Consulta de datos demográficos', user: role },
                 ].map((log, i) => (
                   <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/40 text-sm">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0" />

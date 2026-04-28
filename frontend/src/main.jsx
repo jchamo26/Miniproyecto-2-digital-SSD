@@ -9,15 +9,25 @@ import PatientDetail from './views/PatientDetail'
 import AdminPanel from './views/AdminPanel'
 import './index.css'
 
+function RequireAuth({ children }) {
+  const token = sessionStorage.getItem('token')
+  return token ? children : <Navigate to="/login" replace />
+}
+
+function RequireRole({ roles, children }) {
+  const role = sessionStorage.getItem('role')
+  return roles.includes(role) ? children : <Navigate to="/dashboard" replace />
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <Toaster position="top-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/patients/:id" element={<PatientDetail />} />
-        <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="/patients/:id" element={<RequireAuth><PatientDetail /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth><RequireRole roles={['admin']}><AdminPanel /></RequireRole></RequireAuth>} />
         <Route path="/" element={<Navigate to="/dashboard" />} />
       </Routes>
     </BrowserRouter>

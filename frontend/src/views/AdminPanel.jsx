@@ -15,7 +15,7 @@ function EncField({ value }) {
 const TABS = [
   { id: 'usuarios', label: 'Usuarios', icon: Users },
   { id: 'pacientes', label: 'Pacientes (Cifrado)', icon: Lock },
-  { id: 'estadisticas', label: 'Estadisticas', icon: BarChart2 },
+  { id: 'estadisticas', label: 'Estadísticas', icon: BarChart2 },
   { id: 'logs', label: 'Audit Log', icon: FileText },
 ]
 
@@ -67,7 +67,7 @@ export default function AdminPanel() {
         setLogs(d.entries || [])
       }
     } catch {
-      toast.error('Error cargando audit log')
+      toast.error('Error cargando el log de auditoría')
     }
   }
 
@@ -82,7 +82,7 @@ export default function AdminPanel() {
         setStats(await r.json())
       }
     } catch {
-      toast.error('Error cargando estadisticas')
+      toast.error('Error cargando estadísticas')
     }
   }
 
@@ -145,7 +145,7 @@ export default function AdminPanel() {
 
       <div className="mx-6 mt-4 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 flex items-center gap-2 text-sm text-amber-300">
         <Lock className="w-4 h-4 flex-shrink-0" />
-        <span>Los datos de identidad permanecen cifrados para admin. No hay opcion de revelar.</span>
+        <span>Los datos de identidad permanecen cifrados para admin. No hay opción de revelar.</span>
       </div>
 
       <div className="p-6 max-w-6xl mx-auto space-y-5">
@@ -162,8 +162,8 @@ export default function AdminPanel() {
           {activeTab === 'usuarios' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="font-bold text-white text-lg">Gestion de Usuarios</h2>
-                <button className="btn-primary flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo Usuario</button>
+                <h2 className="font-bold text-white text-lg">Gestión de usuarios</h2>
+                <button className="btn-primary flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo usuario</button>
               </div>
               <div className="card-clinical overflow-x-auto">
                 <table className="w-full text-sm">
@@ -201,11 +201,11 @@ export default function AdminPanel() {
               <div className="flex justify-between items-center">
                 <h2 className="font-bold text-white text-lg flex items-center gap-2">
                   <Lock className="w-4 h-4 text-amber-400" />
-                  Datos de Pacientes - Vista Cifrada
+                  Datos de pacientes - vista cifrada
                 </h2>
                 <button onClick={fetchPatients} className="btn-ghost flex items-center gap-1.5 text-xs"><RefreshCw className="w-3.5 h-3.5" /> Refrescar</button>
               </div>
-              <p className="text-xs text-slate-500">Todos los campos de identidad se muestran cifrados sin excepcion.</p>
+              <p className="text-xs text-slate-500">Todos los campos de identidad se muestran cifrados sin excepción.</p>
 
               <div className="card-clinical overflow-x-auto">
                 {loadingPatients ? (
@@ -214,7 +214,7 @@ export default function AdminPanel() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-700/60">
-                        {['ID Publico', 'Nombre', 'Fecha Nac.', 'Genero', 'Estado'].map(h => (
+                        {['ID público', 'Nombre', 'Fecha nac.', 'Género', 'Estado'].map(h => (
                           <th key={h} className="pb-2 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-3">{h}</th>
                         ))}
                       </tr>
@@ -233,7 +233,7 @@ export default function AdminPanel() {
                           </tr>
                         )
                       })}
-                      {patients.length === 0 && (<tr><td colSpan={5} className="py-8 text-center text-slate-500">Sin datos - conecte el backend</td></tr>)}
+                      {patients.length === 0 && (<tr><td colSpan={5} className="py-8 text-center text-slate-500">Sin datos; conecta el backend</td></tr>)}
                     </tbody>
                   </table>
                 )}
@@ -243,13 +243,13 @@ export default function AdminPanel() {
 
           {activeTab === 'estadisticas' && (
             <div className="space-y-4">
-              <h2 className="font-bold text-white text-lg">Estadisticas del Sistema</h2>
+              <h2 className="font-bold text-white text-lg">Estadísticas del sistema</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
                   { label: 'Total Pacientes', value: stats?.total_patients ?? patients.length ?? '-', icon: Users, color: '#22d3ee' },
                   { label: 'Usuarios Activos', value: users.filter(u => u.active).length || '-', icon: Activity, color: '#10b981' },
                   { label: 'Inferencias IA', value: stats?.total_inferences ?? '-', icon: BarChart2, color: '#a78bfa' },
-                  { label: 'Tasa Exito IA', value: stats ? `${Math.round((stats.inference_acceptance_rate || 0) * 100)}%` : '-', icon: Shield, color: '#f59e0b' },
+                  { label: 'Tasa de éxito IA', value: stats ? `${Math.round((stats.inference_acceptance_rate || 0) * 100)}%` : '-', icon: Shield, color: '#f59e0b' },
                 ].map(s => (
                   <div key={s.label} className="stat-card">
                     <div className="flex items-start justify-between">
@@ -266,7 +266,7 @@ export default function AdminPanel() {
               <div className="card-clinical">
                 <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-cyan-400" />
-                  Actividad de Inferencias (ultimos 7 dias)
+                  Actividad de inferencias (últimos 7 días)
                 </h3>
                 <div className="flex items-end gap-2 h-24">
                   {[32, 45, 28, 67, 54, 89, 73].map((v, i) => (
@@ -289,7 +289,7 @@ export default function AdminPanel() {
           {activeTab === 'logs' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="font-bold text-white text-lg">Registro de Auditoria</h2>
+                <h2 className="font-bold text-white text-lg">Registro de auditoría</h2>
                 <button onClick={handleExportLogs} className="btn-ghost flex items-center gap-1.5 text-xs"><Download className="w-3.5 h-3.5" /> Exportar CSV</button>
               </div>
               <div className="card-clinical space-y-2">
@@ -316,7 +316,7 @@ export default function AdminPanel() {
         </motion.div>
       </div>
 
-      <div className="footer-clinical px-6 pb-4">Ley 1581/2012 | Datos AES-256 | Panel de Administracion</div>
+      <div className="footer-clinical px-6 pb-4">Ley 1581/2012 | Datos AES-256 | Panel de administración</div>
     </div>
   )
 }

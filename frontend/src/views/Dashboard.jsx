@@ -55,6 +55,8 @@ export default function Dashboard() {
   const itemsPerPage = 8
   const role = sessionStorage.getItem('role')
   const isAdmin = role === 'admin'
+  const isMedico = role === 'medico'
+  const isPaciente = role === 'paciente'
 
   useEffect(() => {
     const token = sessionStorage.getItem('token')
@@ -112,7 +114,7 @@ export default function Dashboard() {
             isAdmin ? 'badge-role-admin' :
             role === 'medico' ? 'badge-role-medico' : 'badge-role-paciente'
           }`}>
-            {isAdmin ? 'Admin' : role === 'medico' ? 'Medico' : 'Paciente'}
+            {isAdmin ? 'Admin' : role === 'medico' ? 'Médico' : 'Paciente'}
           </div>
           {isAdmin && (
             <button onClick={() => navigate('/admin')}
@@ -138,22 +140,26 @@ export default function Dashboard() {
             style={{ background: 'rgba(180,83,9,0.15)' }}
           >
             <Lock className="w-4 h-4 flex-shrink-0" />
-            <span>Vista de administrador: los datos de identidad de los pacientes estan cifrados.</span>
+            <span>Vista de administrador: los datos de identidad de los pacientes están cifrados.</span>
           </motion.div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className={`grid gap-4 ${isPaciente ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 md:grid-cols-4'}`}>
           <StatCard icon={Users}         label="Total Pacientes"  value={patients.length}  sub="Registrados en FHIR" accent="linear-gradient(90deg,#0891b2,#06b6d4)" />
           <StatCard icon={AlertTriangle} label="Riesgo Cr\u00EDtico"   value={criticalCount}    sub="Requieren atenci\u00F3n"  accent="linear-gradient(90deg,#dc2626,#ef4444)" />
-          <StatCard icon={Brain}         label="An\u00E1lisis ML/DL"   value="Activo"           sub="Heart Disease model" accent="linear-gradient(90deg,#7c3aed,#8b5cf6)" />
-          <StatCard icon={Shield}        label="Acceso Auditado"  value="100%"             sub="Logs en tiempo real" accent="linear-gradient(90deg,#059669,#10b981)" />
+          {!isPaciente && (
+            <StatCard icon={Brain} label="An\u00E1lisis de IA" value="Activo" sub="Modelos clínicos disponibles" accent="linear-gradient(90deg,#7c3aed,#8b5cf6)" />
+          )}
+          {!isPaciente && (
+            <StatCard icon={Shield} label="Acceso Auditado" value="100%" sub="Eventos registrados" accent="linear-gradient(90deg,#059669,#10b981)" />
+          )}
         </div>
 
         <div className="card-clinical">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
             <h2 className="font-bold text-white text-lg flex items-center gap-2">
               <Users className="w-5 h-5 text-cyan-400" />
-              Lista de Pacientes
+              Lista de pacientes
             </h2>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -271,27 +277,29 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="card-clinical">
-          <div className="flex items-center gap-3 mb-3">
-            <Brain className="w-5 h-5 text-purple-400" />
-            <h2 className="font-bold text-white">Servicios de IA</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { label: 'ML Service', sub: 'Heart Disease \u00B7 Regresi\u00F3n Log\u00EDstica ONNX INT8', color: 'text-cyan-400', dot: 'bg-cyan-400' },
-              { label: 'DL Service', sub: 'Heart Disease \u00B7 MLP ONNX INT8',                 color: 'text-purple-400', dot: 'bg-purple-400' },
-            ].map(s => (
-              <div key={s.label} className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/50">
-                <span className={`w-2 h-2 rounded-full ${s.dot} flex-shrink-0`} />
-                <div>
-                  <p className={`text-sm font-semibold ${s.color}`}>{s.label}</p>
-                  <p className="text-xs text-slate-500">{s.sub}</p>
+        {(isMedico || isAdmin) && (
+          <div className="card-clinical">
+            <div className="flex items-center gap-3 mb-3">
+              <Brain className="w-5 h-5 text-purple-400" />
+              <h2 className="font-bold text-white">Servicios de IA</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { label: 'ML Service', sub: 'Riesgo tabular · Regresión logística ONNX INT8', color: 'text-cyan-400', dot: 'bg-cyan-400' },
+                { label: 'DL Service', sub: 'ECG por imagen · PCA + Regresión logística ONNX', color: 'text-purple-400', dot: 'bg-purple-400' },
+              ].map(s => (
+                <div key={s.label} className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/50">
+                  <span className={`w-2 h-2 rounded-full ${s.dot} flex-shrink-0`} />
+                  <div>
+                    <p className={`text-sm font-semibold ${s.color}`}>{s.label}</p>
+                    <p className="text-xs text-slate-500">{s.sub}</p>
+                  </div>
+                  <span className="ml-auto text-xs text-emerald-400 font-medium">&#x25CF; En línea</span>
                 </div>
-                <span className="ml-auto text-xs text-emerald-400 font-medium">&#x25CF; Online</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
       <div className="footer-clinical px-6 pb-4">
