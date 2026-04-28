@@ -69,7 +69,7 @@ export default function PatientDetail() {
   const isPaciente = role === 'paciente'
   const tabs = [
     { id: 'datos', label: 'Datos clínicos', icon: User },
-    { id: 'vitales', label: 'Signos vitales', icon: Activity },
+    ...(!isAdmin ? [{ id: 'vitales', label: 'Signos vitales', icon: Activity }] : []),
     ...((isMedico || isPaciente) ? [{ id: 'analisis', label: isPaciente ? 'Diagnóstico' : 'Análisis de IA', icon: Zap }] : []),
     ...(isAdmin ? [{ id: 'auditoria', label: 'Auditoría', icon: FileText }] : []),
   ]
