@@ -133,10 +133,10 @@ Role: Paciente/Auditor (ver solo su informaciÃ³n y RiskReports firmados)
    - SHAP TreeExplainer incluido
    - MÃ©tricas: F1=0.89, AUC=0.92
 
-4. **DL Service (INT8/ONNX)**
-   - EfficientNet-B0 cuantizado para CPU
-   - Grad-CAM generado y guardado en MinIO
-   - Soporta: FUNDUS, XRAY, DERM, endoscopy
+4. **DL Service (ECG/ONNX)**
+  - Clasificador ligero PCA + Logistic Regression cuantizado para CPU
+  - Mapa de calor equivalente guardado en MinIO
+  - Soporta dataset ECG por carpetas: `normal`, `abnormal`, `afib` y clases adicionales
 
 5. **Orchestrator**
    - asyncio.Semaphore(4) â†’ 4 inferencias concurrentes mÃ­nimo
@@ -184,7 +184,7 @@ CREATE TABLE images (
     id UUID PRIMARY KEY,
     patient_id UUID REFERENCES patients(id),
     minio_key BYTEA NOT NULL,  -- cifrado pgcrypto
-    modality VARCHAR(50),  -- FUNDUS, XRAY, etc.
+    modality VARCHAR(50),  -- ECG, XRAY, DERM, etc.
     fhir_media_id TEXT,
     created_at TIMESTAMPTZ
 );
@@ -244,7 +244,7 @@ python scripts/seed_patients.py
 
 ### Datasets Usados
 - **PIMA Indians Diabetes:** 768 cases, 8 features (Glucose, BMI, Insulin...)
-- **APTOS 2019:** 3662 fundus images, 5 classes (retinopatÃ­a 0-4)
+- **ECG Images Dataset:** carpetas por clase para la inferencia DL ECG (`normal`, `abnormal`, `afib`, etc.)
 
 ---
 
@@ -296,15 +296,42 @@ python scripts/seed_patients.py
   - Recall: 0.94
 - **Tiempo CPU:** < 3 segundos
 
-### DL Imagen (EfficientNet-B0)
-- **Framework:** ONNX Runtime (CPU)
-- **CuantizaciÃ³n:** INT8 (PyTorch dynamic quantization)
-- **Entrada:** 224Ã—224 RGB
-- **Salida:** 5 clases (retinopatÃ­a: normal, mild, moderate, severe, proliferative)
-- **Explicabilidad:** Grad-CAM superpuesto en original
-- **Almacenamiento:** MinIO s3://clinical-images/gradcam/{task_id}.jpg
-- **Tiempo CPU:** < 15 segundos
-- **ReducciÃ³n tamaÃ±o:** 70 MB â†’ 18 MB | Speedup: 2-4Ã—
+### DL Imagen ECG (PCA + Logistic Regression)
+- **Framework:** scikit-learn exportado a ONNX Runtime (CPU)
+- **CuantizaciÃ³n:** INT8 opcional mediante `onnxruntime.quantization`
+- **Entrada:** imagen ECG en escala de grises, redimensionada a 96Ã—96
+- **Salida:** clases ECG definidas por carpeta (`normal`, `abnormal`, `afib`, etc.)
+- **Explicabilidad:** mapa de calor equivalente superpuesto en la imagen original
+- **Almacenamiento:** MinIO `s3://clinical-images/patients/{id}/images/` y `gradcam/`
+- **Tiempo CPU:** pensado para inferencia ligera en contenedores CPU
+- **Dataset:** montar en `datasets/ecg-images/` con una carpeta por clase
+
+### Formato esperado del dataset ECG
+```text
+datasets/
+└── ecg-images/
+    ├── normal/
+    │   ├── img_001.png
+    │   └── ...
+    ├── abnormal/
+    │   └── ...
+    └── afib/
+        └── ...
+```
+
+### Probar `POST /predict-image`
+```bash
+curl -X POST http://localhost:8003/predict-image \
+  -F "patient_id=demo-ecg-001" \
+  -F "image=@datasets/ecg-images/normal/img_001.png"
+```
+
+### Formatos aceptados
+- PNG
+- JPG / JPEG
+- BMP
+- WEBP
+- TIFF
 
 ### Multimodal (Bono +0.5 pts)
 ```python
@@ -639,7 +666,7 @@ proyecto-salud-digital-c2/
 
 Ver `datasets/README_datasets.md` para:
 - CÃ³mo descargar PIMA Diabetes (UCI ML)
-- CÃ³mo descargar APTOS 2019 (Kaggle)
+- CÃ³mo organizar el ECG Images Dataset para dl-service
 - Formato esperado
 - Licencias y atribuciones
 

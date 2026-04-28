@@ -83,34 +83,48 @@ id_code,diagnosis
 
 ---
 
-## 🫀 NIH ChestX-ray14 (Opcional para DL en este proyecto)
+## 🫀 ECG Images Dataset (DL principal en este proyecto)
 
 ### Objetivo en este repo
-- Cargar imagenes de torax a MinIO automaticamente para que el `dl-service` las use cuando no se envia `image_base64`.
-- Fuente sugerida por el equipo: https://nihcc.app.box.com/v/ChestXray-NIHCC
+- Cargar imagenes ECG por carpeta a MinIO automaticamente para que el `dl-service` las use cuando no se envia `image_base64`.
+- Estructura esperada: una carpeta por clase, por ejemplo `normal/`, `abnormal/`, `afib/`.
 
 ### Estructura esperada local
 Copie imagenes JPG/PNG (una muestra pequena para demo) en:
 
 ```text
 datasets/
-└── nih-chestxray/
-    └── images/
-        ├── 00000001_000.png
-        ├── 00000002_000.png
+└── ecg-images/
+    ├── normal/
+    │   ├── 00000001.png
+    │   └── ...
+    ├── abnormal/
+    │   └── ...
+    └── afib/
         └── ...
 ```
 
 ### Comportamiento automatico
-- `dl-service` revisa `/datasets/nih-chestxray/images` al iniciar.
-- Si MinIO no tiene objetos bajo `seed/chestxray/`, sube hasta `DL_SEED_MAX_UPLOAD` imagenes.
+- `dl-service` revisa `/datasets/ecg-images` al iniciar.
+- Si MinIO no tiene objetos bajo `seed/ecg/`, sube hasta `DL_SEED_MAX_UPLOAD` imagenes.
 - Luego, en inferencia DL sin imagen cargada por usuario, selecciona una imagen seed desde MinIO (deterministica por `patient_id`).
-- Si no hay seeds disponibles, usa fallback sintetico.
+- Si no hay seeds disponibles, usa fallback sintetico ECG.
 
 ### Variables relevantes (docker-compose)
-- `DL_LOCAL_IMAGE_DIR=/datasets/nih-chestxray/images`
-- `DL_MINIO_SEED_PREFIX=seed/chestxray`
+- `ECG_DATASET_PATH=/datasets/ecg-images`
+- `DL_LOCAL_IMAGE_DIR=/datasets/ecg-images`
+- `DL_MINIO_SEED_PREFIX=seed/ecg`
 - `DL_SEED_MAX_UPLOAD=300`
+
+### Script recomendado
+```bash
+python scripts/prepare_ecg_dataset.py
+```
+
+Si ya tiene un dataset ECG con carpetas por clase, puede copiarlo con:
+```bash
+python scripts/prepare_ecg_dataset.py --source /ruta/a/su/ecg-dataset
+```
 
 ---
 
