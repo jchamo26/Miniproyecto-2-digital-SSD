@@ -110,7 +110,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # DL Service - Heart Disease MLP ONNX INT8
+  # DL Service - ECG Image Classifier ONNX INT8
   dl-service:
     build: ./dl-service
     container_name: dl_service
@@ -119,9 +119,8 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - MINIO_BUCKET=clinical-images
-      - DATASET_PATH=/datasets/heart-disease.csv
-      - DL_LOCAL_IMAGE_DIR=/datasets/nih-chestxray/images
-      - DL_MINIO_SEED_PREFIX=seed/chestxray
+      - DL_LOCAL_IMAGE_DIR=/datasets/ecg-images/images
+      - DL_MINIO_SEED_PREFIX=seed/ecg-images
       - DL_SEED_MAX_UPLOAD=300
     depends_on:
       - minio

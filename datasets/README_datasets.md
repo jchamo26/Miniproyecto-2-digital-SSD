@@ -83,34 +83,56 @@ id_code,diagnosis
 
 ---
 
-## 🫀 NIH ChestX-ray14 (Opcional para DL en este proyecto)
+## 🫀 ECG Images Dataset (para DL service)
 
 ### Objetivo en este repo
-- Cargar imagenes de torax a MinIO automaticamente para que el `dl-service` las use cuando no se envia `image_base64`.
-- Fuente sugerida por el equipo: https://nihcc.app.box.com/v/ChestXray-NIHCC
+- Clasificación de imágenes de ECG con 4 clases clínicas.
+- El `dl-service` puede usar imágenes reales del dataset **o generar trazados sintéticos** cuando el directorio no está disponible.
+
+### Clases esperadas
+| Carpeta | Descripción clínica | Riesgo |
+|---|---|---|
+| `Normal` | Ritmo sinusal normal | LOW |
+| `Atrial Fibrillation` | Fibrilación auricular | HIGH |
+| `ST-Elevation MI` | Infarto agudo con elevación del ST (STEMI) | CRITICAL |
+| `Other Arrhythmia` | Otras arritmias / bloqueos | MEDIUM |
 
 ### Estructura esperada local
-Copie imagenes JPG/PNG (una muestra pequena para demo) en:
-
 ```text
 datasets/
-└── nih-chestxray/
+└── ecg-images/
     └── images/
-        ├── 00000001_000.png
-        ├── 00000002_000.png
-        └── ...
+        ├── Normal/
+        │   ├── ecg_001.png
+        │   └── ...
+        ├── Atrial Fibrillation/
+        │   ├── ecg_af_001.png
+        │   └── ...
+        ├── ST-Elevation MI/
+        │   ├── ecg_stemi_001.png
+        │   └── ...
+        └── Other Arrhythmia/
+            ├── ecg_other_001.png
+            └── ...
 ```
 
-### Comportamiento automatico
-- `dl-service` revisa `/datasets/nih-chestxray/images` al iniciar.
-- Si MinIO no tiene objetos bajo `seed/chestxray/`, sube hasta `DL_SEED_MAX_UPLOAD` imagenes.
-- Luego, en inferencia DL sin imagen cargada por usuario, selecciona una imagen seed desde MinIO (deterministica por `patient_id`).
-- Si no hay seeds disponibles, usa fallback sintetico.
+### Fuentes de datos recomendadas
+- **PhysioNet / MIT-BIH** (acceso libre): https://physionet.org/content/mitdb/1.0.0/
+- **PTB-XL ECG Image Dataset** (Kaggle): buscar "ECG Images Dataset" en Kaggle
+- Cualquier dataset de imágenes ECG con al menos una carpeta por clase
 
-### Variables relevantes (docker-compose)
-- `DL_LOCAL_IMAGE_DIR=/datasets/nih-chestxray/images`
-- `DL_MINIO_SEED_PREFIX=seed/chestxray`
-- `DL_SEED_MAX_UPLOAD=300`
+### Comportamiento automático del servicio
+1. Al iniciar, el `dl-service` revisa `DL_LOCAL_IMAGE_DIR` (`/datasets/ecg-images/images`).
+2. Si no hay imágenes reales, **genera automáticamente datos sintéticos** (trazados ECG procedurales) para entrenar el modelo demo.
+3. Si hay imágenes reales, las usa para entrenamiento y las sube a MinIO como seeds.
+4. En inferencia sin imagen del usuario, elige una seed de MinIO (determinística por `patient_id`) o genera un trazado sintético.
+
+### Variables de entorno relevantes (docker-compose)
+```yaml
+DL_LOCAL_IMAGE_DIR=/datasets/ecg-images/images
+DL_MINIO_SEED_PREFIX=seed/ecg-images
+DL_SEED_MAX_UPLOAD=300
+```
 
 ---
 
