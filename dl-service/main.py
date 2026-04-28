@@ -147,6 +147,123 @@ class ECGImageONNXService:
         array = np.asarray(prepared, dtype=np.float32) / 255.0
         return array.reshape(-1)
 
+    def _moving_average(self, values: np.ndarray, window: int) -> np.ndarray:
+        window = max(3, int(window))
+        kernel = np.ones(window, dtype=np.float32) / float(window)
+        return np.convolve(values, kernel, mode="same")
+
+    def _extract_ecg_trace(self, image: Image.Image) -> tuple[np.ndarray | None, float]:
+        prepared = self._preprocess_image(image)
+        array = np.asarray(prepared, dtype=np.float32)
+        dark_mask = array < 210.0
+
+        trace = np.full(self.image_size, np.nan, dtype=np.float32)
+        for column in range(self.image_size):
+            rows = np.where(dark_mask[:, column])[0]
+            if rows.size:
+                trace[column] = float(np.median(rows))
+
+        valid_mask = np.isfinite(trace)
+        coverage = float(valid_mask.mean())
+        if valid_mask.sum() < max(8, self.image_size // 6):
+            return None, coverage
+
+        valid_indices = np.flatnonzero(valid_mask)
+        interpolated = np.interp(np.arange(self.image_size), valid_indices, trace[valid_mask])
+        signal = (self.image_size - interpolated).astype(np.float32)
+        signal -= float(np.median(signal))
+        return signal, coverage
+
+    def _detect_peaks(self, signal: np.ndarray) -> np.ndarray:
+        if signal.size < 3:
+            return np.asarray([], dtype=np.int64)
+
+        smoothed = self._moving_average(signal, max(5, self.image_size // 28))
+        amplitude = float(np.percentile(smoothed, 95) - np.percentile(smoothed, 5))
+        if amplitude <= 1e-6:
+            return np.asarray([], dtype=np.int64)
+
+        threshold = float(np.percentile(smoothed, 70) + max(amplitude * 0.12, float(np.std(smoothed)) * 0.4))
+        candidate_peaks: list[int] = []
+        for index in range(1, smoothed.size - 1):
+            if smoothed[index] >= smoothed[index - 1] and smoothed[index] > smoothed[index + 1] and smoothed[index] >= threshold:
+                candidate_peaks.append(index)
+
+        if not candidate_peaks:
+            return np.asarray([], dtype=np.int64)
+
+        min_distance = max(4, self.image_size // 32)
+        filtered: list[int] = [candidate_peaks[0]]
+        for index in candidate_peaks[1:]:
+            if index - filtered[-1] < min_distance:
+                if smoothed[index] > smoothed[filtered[-1]]:
+                    filtered[-1] = index
+            else:
+                filtered.append(index)
+        return np.asarray(filtered, dtype=np.int64)
+
+    def _heuristic_probabilities(self, image: Image.Image) -> np.ndarray | None:
+        trace, coverage = self._extract_ecg_trace(image)
+        if trace is None or coverage < 0.15:
+            return None
+
+        smoothed = self._moving_average(trace, max(5, self.image_size // 18))
+        peaks = self._detect_peaks(smoothed)
+        if peaks.size > 1:
+            intervals = np.diff(peaks).astype(np.float32)
+            interval_mean = float(np.mean(intervals))
+            interval_cv = float(np.std(intervals) / (interval_mean + 1e-6))
+        else:
+            interval_cv = 1.0
+
+        amplitude = float(np.percentile(smoothed, 95) - np.percentile(smoothed, 5))
+        roughness = float(np.std(np.diff(smoothed)) / (np.std(smoothed) + 1e-6))
+        baseline = float(np.std(smoothed - self._moving_average(smoothed, max(9, self.image_size // 12))) / (amplitude + 1e-6))
+        peak_density = float(peaks.size / max(float(smoothed.size), 1.0))
+        regularity = float(np.clip(1.0 - min(interval_cv, 2.0) / 2.0, 0.0, 1.0))
+        noise = float(np.clip((roughness * 0.55) + (baseline * 0.75), 0.0, 1.0))
+
+        irregularity = float(np.clip(interval_cv / 0.85, 0.0, 1.0))
+
+        normal_score = float(np.clip((1.0 - noise) * 0.55 + regularity * 0.30 + np.clip(0.55 - interval_cv, 0.0, 0.55) * 0.45, 0.0, 1.0))
+        afib_score = float(np.clip(irregularity * 0.95 + noise * 0.55 + np.clip(0.42 - regularity, 0.0, 0.42) * 0.85 + np.clip(peak_density - 0.025, 0.0, 0.2) * 0.9, 0.0, 1.0))
+        abnormal_score = float(np.clip((1.0 - regularity) * 0.45 + noise * 0.35 + np.clip(abs(peak_density - 0.035) / 0.04, 0.0, 1.0) * 0.25, 0.0, 1.0))
+
+        if interval_cv >= 0.75 and coverage >= 0.35:
+            class_scores = []
+            for class_name in self.class_names:
+                label = class_name.lower()
+                if any(token in label for token in ("afib", "fibrill")):
+                    class_scores.append(0.72)
+                elif any(token in label for token in ("normal", "healthy", "sinus")):
+                    class_scores.append(0.12)
+                else:
+                    class_scores.append(0.16)
+            probabilities = np.asarray(class_scores, dtype=np.float32)
+            total = float(probabilities.sum())
+            if total <= 0.0:
+                return None
+            return probabilities / total
+
+        class_scores: list[float] = []
+        for class_name in self.class_names:
+            label = class_name.lower()
+            if any(token in label for token in ("normal", "healthy", "sinus")):
+                score = normal_score
+            elif any(token in label for token in ("afib", "fibrill")):
+                score = afib_score
+            elif any(token in label for token in ("abnormal", "other", "arrhythm", "flutter", "tachy", "vt", "block", "mi", "stemi")):
+                score = abnormal_score
+            else:
+                score = float(np.clip(0.25 + float(self.class_severity.get(class_name, 0.5)) * 0.5, 0.0, 1.0))
+            class_scores.append(score)
+
+        probabilities = np.asarray(class_scores, dtype=np.float32)
+        total = float(probabilities.sum())
+        if total <= 0.0:
+            return None
+        return probabilities / total
+
     def _load_seed_image(self, patient_id: str) -> Image.Image | None:
         if not self.seed_image_keys:
             return None
@@ -593,6 +710,11 @@ class ECGImageONNXService:
         original_image = image.copy()
         features = self._transform_features(image)
         probabilities = self._session_probabilities(features)
+        heuristic_probabilities = self._heuristic_probabilities(original_image)
+        if heuristic_probabilities is not None and heuristic_probabilities.shape == probabilities.shape:
+            blend_weight = 0.35 + (0.35 * float(np.max(heuristic_probabilities)))
+            probabilities = ((1.0 - blend_weight) * probabilities) + (blend_weight * heuristic_probabilities)
+            probabilities = probabilities / (probabilities.sum() + 1e-8)
         predicted_index = int(np.argmax(probabilities))
         predicted_class = self.class_names[predicted_index]
 

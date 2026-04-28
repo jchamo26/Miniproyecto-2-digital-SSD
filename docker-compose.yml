@@ -1,7 +1,7 @@
 services:
   # Proxy Reverso - Único punto expuesto al exterior
   nginx:
-    image: nginx:alpine
+    build: ./nginx
     container_name: nginx_proxy
     depends_on:
       - frontend

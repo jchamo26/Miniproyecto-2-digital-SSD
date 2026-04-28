@@ -456,15 +456,15 @@ async def sign_risk_report(
         raise HTTPException(status_code=403, detail="Only medico can sign reports")
 
     notes = signature.get("doctor_notes", "")
-    if len(notes) < 30:
-        raise HTTPException(status_code=400, detail="Doctor notes must be at least 30 characters")
+    if len(notes) < 12:
+        raise HTTPException(status_code=400, detail="Doctor notes must be at least 12 characters")
 
     action = signature.get("doctor_action")
     if action not in ("ACCEPTED", "REJECTED"):
         raise HTTPException(status_code=400, detail="doctor_action must be ACCEPTED or REJECTED")
 
-    if action == "REJECTED" and len(signature.get("rejection_reason", "")) < 20:
-        raise HTTPException(status_code=400, detail="Rejection reason must be at least 20 characters")
+    if action == "REJECTED" and len(signature.get("rejection_reason", "")) < 12:
+        raise HTTPException(status_code=400, detail="Rejection reason must be at least 12 characters")
 
     row = await pool.fetchrow(
         "SELECT id FROM risk_reports WHERE id::text=$1 AND signed_at IS NULL AND deleted_at IS NULL",

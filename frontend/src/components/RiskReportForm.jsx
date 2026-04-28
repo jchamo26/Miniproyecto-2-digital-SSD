@@ -9,14 +9,17 @@ export default function RiskReportForm({ riskReport, onSigned }) {
   const [rejectionReason, setRejectionReason] = useState('')
   const [loading, setLoading] = useState(false)
 
+  const minNotesLength = 12
+  const minRejectionLength = 12
+
   const handleSign = async () => {
-    if (doctorNotes.length < 30) {
-      toast.error('Las observaciones deben tener al menos 30 caracteres')
+    if (doctorNotes.length < minNotesLength) {
+      toast.error(`Las observaciones deben tener al menos ${minNotesLength} caracteres`)
       return
     }
 
-    if (action === 'REJECTED' && rejectionReason.length < 20) {
-      toast.error('La justificacion de rechazo debe tener al menos 20 caracteres')
+    if (action === 'REJECTED' && rejectionReason.length < minRejectionLength) {
+      toast.error(`La justificacion de rechazo debe tener al menos ${minRejectionLength} caracteres`)
       return
     }
 
@@ -44,7 +47,8 @@ export default function RiskReportForm({ riskReport, onSigned }) {
         toast.success('RiskReport firmado')
         onSigned()
       } else {
-        toast.error('Error al firmar el reporte')
+        const errorPayload = await response.json().catch(() => ({}))
+        toast.error(errorPayload.detail || 'Error al firmar el reporte')
       }
     } catch {
       toast.error('Error de conexion')
@@ -61,15 +65,15 @@ export default function RiskReportForm({ riskReport, onSigned }) {
       <h2 className="text-xl font-bold">Firma del RiskReport</h2>
 
       <div>
-        <label className="block text-sm font-medium text-slate-200 mb-2">Observaciones Clinicas (minimo 30 caracteres)</label>
+        <label className="block text-sm font-medium text-slate-200 mb-2">Observaciones Clinicas (minimo 12 caracteres)</label>
         <textarea
           value={doctorNotes}
           onChange={e => setDoctorNotes(e.target.value)}
           placeholder="Ingrese sus observaciones clinicas..."
           className="w-full px-4 py-2 rounded-lg bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 transition-colors h-24 resize-none"
         />
-        <p className={`text-xs mt-1 ${notesLength >= 30 ? 'text-green-400' : 'text-slate-500'}`}>
-          {notesLength}/30 caracteres {notesLength >= 30 && 'OK'}
+        <p className={`text-xs mt-1 ${notesLength >= minNotesLength ? 'text-green-400' : 'text-slate-500'}`}>
+          {notesLength}/{minNotesLength} caracteres {notesLength >= minNotesLength && 'OK'}
         </p>
       </div>
 
@@ -96,22 +100,22 @@ export default function RiskReportForm({ riskReport, onSigned }) {
 
       {action === 'REJECTED' && (
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-          <label className="block text-sm font-medium text-slate-200 mb-2">Justificacion del Rechazo (minimo 20 caracteres)</label>
+          <label className="block text-sm font-medium text-slate-200 mb-2">Justificacion del Rechazo (minimo 12 caracteres)</label>
           <textarea
             value={rejectionReason}
             onChange={e => setRejectionReason(e.target.value)}
             placeholder="Explique por que rechaza este diagnostico..."
             className="w-full px-4 py-2 rounded-lg bg-slate-800/50 border border-red-700/50 text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-colors h-20 resize-none"
           />
-          <p className={`text-xs mt-1 ${rejectionLength >= 20 ? 'text-green-400' : 'text-slate-500'}`}>
-            {rejectionLength}/20 caracteres {rejectionLength >= 20 && 'OK'}
+          <p className={`text-xs mt-1 ${rejectionLength >= minRejectionLength ? 'text-green-400' : 'text-slate-500'}`}>
+            {rejectionLength}/{minRejectionLength} caracteres {rejectionLength >= minRejectionLength && 'OK'}
           </p>
         </motion.div>
       )}
 
       <button
         onClick={handleSign}
-        disabled={loading || !action || doctorNotes.length < 30 || (action === 'REJECTED' && rejectionReason.length < 20)}
+        disabled={loading || !action || doctorNotes.length < minNotesLength || (action === 'REJECTED' && rejectionReason.length < minRejectionLength)}
         className="w-full py-3 rounded-lg bg-teal-600 text-white font-semibold hover:bg-teal-700 disabled:bg-slate-700 disabled:text-slate-500 transition-colors"
       >
         {loading ? 'Firmando...' : 'Firmar RiskReport'}
